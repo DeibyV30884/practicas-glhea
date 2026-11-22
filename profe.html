@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Panel del profesor · Glhea</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0A0E;--card:#19121A;--line:#3B2633;--tx:#F7EEF3;--mut:#B9A8B3;--pink:#FF5C9A;--ok:#3DBE8B;--bad:#E5527F;--warn:#F2B35C}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Poppins,system-ui,sans-serif;line-height:1.45}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:26px;margin:0}h2{font-size:18px;margin:0 0 10px}
+.muted{color:var(--mut)}.small{font-size:13px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--mut)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);animation:p 2s infinite}
+@keyframes p{50%{opacity:.35}}
+.card{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:16px 18px;margin-bottom:14px}
+.btn{font:inherit;font-weight:600;background:var(--pink);color:#1a0b13;border:0;border-radius:12px;padding:10px 16px;cursor:pointer}
+.btn.alt{background:transparent;color:var(--tx);border:2px solid var(--line)}
+.btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #fff;outline-offset:2px}
+input,textarea,select{font:inherit;color:var(--tx);background:#120D13;border:2px solid var(--line);border-radius:12px;padding:10px 12px;width:100%}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+.tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.tab{font:inherit;font-weight:600;background:var(--card);color:var(--mut);border:2px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer}
+.tab[aria-selected=true]{background:var(--pink);color:#1a0b13;border-color:var(--pink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.stat{font-size:34px;font-weight:800;color:var(--pink);line-height:1}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:#2A1B25;color:var(--tx)}
+.pill.ok{background:#173a2e;color:#7ee3b5}.pill.live{background:#3a2f17;color:var(--warn)}
+details.att{border:2px solid var(--line);border-radius:14px;margin-bottom:10px;background:var(--card)}
+details.att>summary{cursor:pointer;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;list-style:none}
+details.att>summary::-webkit-details-marker{display:none}
+details.att[open]>summary{border-bottom:2px solid var(--line)}
+.sp{flex:1}
+.body{padding:12px 16px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:var(--mut);font-weight:600;font-size:12px;padding:6px 8px}
+td{padding:8px;border-top:1px solid var(--line);vertical-align:top}
+tr.no td{background:rgba(229,82,127,.10)}
+.x{color:var(--bad);font-weight:700}.v{color:var(--ok);font-weight:700}
+.bar{height:8px;border-radius:99px;background:#2A1B25;overflow:hidden;min-width:70px}
+.bar i{display:block;height:100%;background:var(--bad)}
+.err{color:var(--bad);margin-top:8px;min-height:20px}
+.empty{text-align:center;padding:30px 10px;color:var(--mut)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.fbbox textarea{min-height:80px;resize:vertical}
+.saved{color:var(--ok);font-size:13px}
+@media(max-width:560px){.hide-sm{display:none}}
+</style></head><body><div class="wrap" id="root"></div>
+<script src="firebase-config.js"></script>
+<script>
+const C=window.FIREBASE_CONFIG||{};
+const DOCS='https://firestore.googleapis.com/v1/projects/'+C.projectId+'/databases/(default)/documents';
+const LS='glhea_teacher_refresh';
+const NAMES={'conjugaciones':'Conjugaciones','ando-iendo':'-ando / -iendo','frases':'Frases'};
+const root=document.getElementById('root');
+let token='',tokExp=0,events=[],feedback={},tab='intentos',pfilter='all',timer=null,lastLoad=null;
+
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pn=p=>NAMES[p]||p;
+const fmt=t=>new Date(t).toLocaleString('es-CR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+
+function plainDoc(d){const o={};for(const k in d.fields||{}){const v=d.fields[k];o[k]=v.stringValue!==undefined?v.stringValue:v.integerValue!==undefined?+v.integerValue:v.booleanValue!==undefined?v.booleanValue:'';}o._id=d.name.split('/').pop();return o;}
+
+/* ---------- auth ---------- */
+async function signIn(email,pass){
+  const r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+C.apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass,returnSecureToken:true})});
+  const j=await r.json(); if(!r.ok) throw new Error(j.error&&j.error.message||'Error');
+  setTok(j.idToken,j.expiresIn,j.refreshToken);
+}
+function setTok(id,exp,ref){token=id;tokExp=Date.now()+(+exp-60)*1000;try{localStorage.setItem(LS,ref);}catch(e){}}
+async function ensureToken(){
+  if(token&&Date.now()<tokExp) return true;
+  let ref='';try{ref=localStorage.getItem(LS)||'';}catch(e){}
+  if(!ref) return false;
+  const r=await fetch('https://securetoken.googleapis.com/v1/token?key='+C.apiKey,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=refresh_token&refresh_token='+encodeURIComponent(ref)});
+  const j=await r.json(); if(!r.ok) return false;
+  setTok(j.id_token,j.expires_in,j.refresh_token); return true;
+}
+function logout(){token='';try{localStorage.removeItem(LS);}catch(e){}clearInterval(timer);events=[];renderLogin();}
+
+/* ---------- data ---------- */
+async function q(coll,order,limit){
+  const body={structuredQuery:{from:[{collectionId:coll}],limit}};
+  if(order) body.structuredQuery.orderBy=[{field:{fieldPath:order},direction:'DESCENDING'}];
+  const r=await fetch(DOCS+':runQuery',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(body)});
+  if(r.status===401||r.status===403) throw new Error('auth');
+  if(!r.ok) throw new Error('http '+r.status);
+  return (await r.json()).filter(x=>x.document).map(x=>plainDoc(x.document));
+}
+async function load(){
+  if(!(await ensureToken())) return renderLogin();
+  try{
+    events=await q('events','ts',4000);
+    const fb=await q('feedback',null,1000); feedback={}; fb.forEach(f=>feedback[f._id]=f);
+    lastLoad=new Date(); draw();
+  }catch(e){ if(e.message==='auth') return logout(); const el=document.getElementById('loaderr'); if(el) el.textContent='No pude actualizar ('+e.message+'). Reintento…'; }
+}
+async function saveFb(att,text,btn){
+  if(!(await ensureToken())) return renderLogin();
+  const body={fields:{text:{stringValue:text.slice(0,2000)},ts:{integerValue:String(Date.now())}}};
+  const r=await fetch(DOCS+'/feedback/'+att,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(body)});
+  const m=btn.parentNode.querySelector('.saved');
+  if(r.ok){feedback[att]={text,ts:Date.now()};m.textContent='Guardado ✓';}else m.textContent='No se pudo guardar';
+  setTimeout(()=>m.textContent='',2500);
+}
+
+/* ---------- model ---------- */
+function attempts(){
+  const m={};
+  events.forEach(e=>{
+    const a=m[e.attempt]||(m[e.attempt]={id:e.attempt,practice:e.practice,start:e.ts,last:e.ts,answers:[],done:null});
+    a.start=Math.min(a.start,e.ts);a.last=Math.max(a.last,e.ts);a.practice=e.practice||a.practice;
+    if(e.type==='answer')a.answers.push(e);else if(e.type==='done')a.done=e;
+  });
+  const list=Object.values(m);
+  list.forEach(a=>a.answers.sort((x,y)=>x.ts-y.ts));
+  return list.filter(a=>a.answers.length||a.done).sort((x,y)=>y.last-x.last);
+}
+const acc=(arr)=>{const f=arr.filter(x=>!x.retry);return f.length?Math.round(100*f.filter(x=>x.ok).length/f.length):null;};
+
+/* ---------- views ---------- */
+function renderLogin(msg){
+  clearInterval(timer);
+  if(!C.apiKey||C.projectId==='TU_PROJECT_ID'){root.innerHTML='<div class="card"><h1>Falta configurar Firebase</h1><p class="muted">Edita <b>firebase-config.js</b> con tu apiKey y projectId.</p></div>';return;}
+  root.innerHTML=`<div class="card" style="max-width:420px;margin:60px auto"><h1>Panel del profesor</h1><p class="muted">Ingresa para ver cómo va Glhea.</p>
+  <form id="lf"><label for="em">Correo</label><input id="em" type="email" autocomplete="username" required>
+  <label for="pw">Contraseña</label><input id="pw" type="password" autocomplete="current-password" required>
+  <div class="row" style="margin-top:14px"><button class="btn" type="submit">Entrar</button></div><div class="err" id="er">${esc(msg||'')}</div></form></div>`;
+  document.getElementById('lf').onsubmit=async ev=>{ev.preventDefault();const er=document.getElementById('er');er.textContent='';
+    try{await signIn(document.getElementById('em').value.trim(),document.getElementById('pw').value);start();}
+    catch(e){er.textContent='Correo o contraseña incorrectos.';}};
+}
+function start(){
+  root.innerHTML='<p class="muted">Cargando…</p>';
+  load(); clearInterval(timer); timer=setInterval(load,15000);
+}
+function draw(){
+  const open=[...document.querySelectorAll('details.att[open]')].map(d=>d.dataset.id);
+  const drafts={};document.querySelectorAll('.fbbox textarea').forEach(t=>{if(t===document.activeElement||t.dataset.dirty)drafts[t.dataset.id]=t.value;});
+  const focusId=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
+  const at=attempts();
+  const f=pfilter==='all'?at:at.filter(a=>a.practice===pfilter);
+  root.innerHTML=`<div class="top"><div><h1>Panel del profesor</h1><span class="live"><span class="dot"></span>En vivo · actualizado ${lastLoad?lastLoad.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):''}</span> <span class="err small" id="loaderr"></span></div>
+   <div class="row"><select id="pf" aria-label="Filtrar práctica" style="width:auto"><option value="all">Todas las prácticas</option>${Object.keys(NAMES).map(k=>`<option value="${k}" ${pfilter===k?'selected':''}>${NAMES[k]}</option>`).join('')}</select>
+   <button class="btn alt" id="rf">Actualizar</button><button class="btn alt" id="lo">Salir</button></div></div>
+   <div class="tabs" role="tablist">${[['intentos','Intentos'],['falla','Qué falla'],['resumen','Resumen']].map(([k,l])=>`<button class="tab" role="tab" aria-selected="${tab===k}" data-t="${k}">${l}</button>`).join('')}</div>
+   <div id="view">${tab==='intentos'?vIntentos(f):tab==='falla'?vFalla(f):vResumen(at)}</div>`;
+  document.getElementById('pf').onchange=e=>{pfilter=e.target.value;draw();};
+  document.getElementById('rf').onclick=load;document.getElementById('lo').onclick=logout;
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab=b.dataset.t;draw();});
+  document.querySelectorAll('details.att').forEach(d=>{if(open.includes(d.dataset.id))d.open=true;});
+  document.querySelectorAll('.fbbox textarea').forEach(t=>{if(drafts[t.dataset.id]!==undefined){t.value=drafts[t.dataset.id];t.dataset.dirty=1;}t.oninput=()=>t.dataset.dirty=1;if(t.dataset.id===focusId)t.focus();});
+  document.querySelectorAll('.fbbox .btn').forEach(b=>b.onclick=()=>{const t=b.parentNode.parentNode.querySelector('textarea');saveFb(t.dataset.id,t.value,b).then(()=>delete t.dataset.dirty);});
+}
+function vIntentos(list){
+  if(!list.length) return '<div class="card empty">Aún no hay intentos. Cuando Glhea haga una práctica aparecerá aquí en vivo.</div>';
+  return list.map(a=>{
+    const ok=a.answers.filter(x=>x.ok).length,tot=a.answers.length,miss=a.answers.filter(x=>!x.ok).length,pct=acc(a.answers);
+    const fb=feedback[a.id];
+    return `<details class="att" data-id="${esc(a.id)}"><summary><b>${esc(pn(a.practice))}</b><span class="muted small">${fmt(a.start)}</span><span class="sp"></span>
+     ${a.done?'<span class="pill ok">Terminada</span>':'<span class="pill live">En progreso</span>'}
+     <span class="pill">${tot} resp.</span><span class="pill ${miss?'':'ok'}">${miss} fallos</span>${pct!==null?`<span class="pill">1.er intento ${pct}%</span>`:''}${fb?'<span class="pill ok">con feedback</span>':''}</summary>
+     <div class="body"><table><thead><tr><th></th><th>Sección</th><th>Pregunta</th><th>Ella</th><th>Correcta</th></tr></thead><tbody>
+     ${a.answers.map(x=>`<tr class="${x.ok?'':'no'}"><td>${x.ok?'<span class="v">✓</span>':'<span class="x">✗</span>'}</td><td class="small muted">${esc(x.section)}${x.retry?' · repaso':''}</td><td>${esc(x.prompt)}</td><td>${esc(x.given)||'<span class="muted">—</span>'}${x.voice?' 🎤':''}</td><td>${esc(x.expected)}</td></tr>`).join('')}
+     </tbody></table>
+     <div class="fbbox" style="margin-top:14px"><label for="fb-${esc(a.id)}">Tu feedback para Glhea</label><textarea id="fb-${esc(a.id)}" data-id="${esc(a.id)}" placeholder="Ej: Muy bien con -ar. Repasa los verbos irregulares (tener, ir).">${esc(fb?fb.text:'')}</textarea>
+     <div class="row" style="margin-top:8px"><button class="btn" type="button">Guardar feedback</button><span class="saved"></span></div></div></div></details>`;
+  }).join('');
+}
+function vFalla(list){
+  const m={};
+  list.forEach(a=>a.answers.forEach(x=>{
+    const k=x.practice+'|'+norm(x.prompt)+'|'+norm(x.expected);
+    const o=m[k]||(m[k]={practice:x.practice,section:x.section,prompt:x.prompt,expected:x.expected,seen:0,fail:0,wrong:{}});
+    o.seen++;if(!x.ok){o.fail++;const g=x.given||'(vacío)';o.wrong[g]=(o.wrong[g]||0)+1;}
+  }));
+  const rows=Object.values(m).filter(o=>o.fail).sort((a,b)=>b.fail-a.fail||b.fail/b.seen-a.fail/a.seen);
+  if(!rows.length) return '<div class="card empty">Todavía no hay fallos registrados 🎉</div>';
+  const sec={};rows.forEach(o=>{const k=o.practice+'|'+o.section;const s=sec[k]||(sec[k]={practice:o.practice,section:o.section,fail:0});s.fail+=o.fail;});
+  const secs=Object.values(sec).sort((a,b)=>b.fail-a.fail).slice(0,6),mx=secs[0].fail;
+  return `<div class="card"><h2>Secciones donde más falla</h2>${secs.map(s=>`<div class="row" style="margin:6px 0"><span style="flex:1;min-width:160px">${esc(s.section)} <span class="muted small">· ${esc(pn(s.practice))}</span></span><div class="bar" style="flex:1"><i style="width:${100*s.fail/mx}%"></i></div><b>${s.fail}</b></div>`).join('')}</div>
+  <div class="card"><h2>Preguntas más falladas</h2><table><thead><tr><th>Pregunta</th><th>Correcta</th><th>Qué respondió</th><th>Falló</th></tr></thead><tbody>
+  ${rows.slice(0,40).map(o=>`<tr><td>${esc(o.prompt)}<div class="small muted">${esc(pn(o.practice))} · ${esc(o.section)}</div></td><td class="v">${esc(o.expected)}</td>
+   <td>${Object.entries(o.wrong).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([g,n])=>`<span class="x">${esc(g)}</span>${n>1?' ×'+n:''}`).join('<br>')}</td><td><b>${o.fail}</b><span class="muted small"> de ${o.seen}</span></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function vResumen(at){
+  return '<div class="grid">'+Object.keys(NAMES).map(k=>{
+    const a=at.filter(x=>x.practice===k),all=a.flatMap(x=>x.answers),dn=a.filter(x=>x.done),p=acc(all);
+    const sc=dn.length?Math.round(100*dn.reduce((s,x)=>s+x.done.score/Math.max(1,x.done.total),0)/dn.length):null;
+    return `<div class="card"><h2>${NAMES[k]}</h2><div class="row" style="gap:20px"><div><div class="stat">${a.length}</div><div class="muted small">intentos</div></div>
+      <div><div class="stat">${dn.length}</div><div class="muted small">terminados</div></div>
+      <div><div class="stat">${sc===null?'—':sc+'%'}</div><div class="muted small">nota 1.er intento</div></div></div>
+      <p class="muted small" style="margin:12px 0 0">${all.length} respuestas · ${all.filter(x=>!x.ok).length} fallos${a.length?' · última vez '+fmt(a[0].last):''}</p></div>`;
+  }).join('')+'</div>';
+}
+
+(async()=>{ if(await ensureToken()) start(); else renderLogin(); })();
+</script></body></html>

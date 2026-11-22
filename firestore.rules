@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function teacher() {
+      return request.auth != null && request.auth.token.email == 'CORREO_DEL_PROFE@gmail.com';
+    }
+
+    // Glhea (sin login) solo puede CREAR eventos con forma válida. Nadie puede leerlos salvo el profe.
+    match /events/{id} {
+      allow create: if request.resource.data.keys().hasOnly(
+          ['type','attempt','practice','ts','section','qnum','prompt','expected','given','ok','retry','voice','score','total'])
+        && request.resource.data.type in ['start','answer','done']
+        && request.resource.data.attempt is string && request.resource.data.attempt.size() <= 40
+        && request.resource.data.practice is string && request.resource.data.practice.size() <= 40
+        && request.resource.data.ts is int
+        && (!('prompt' in request.resource.data) || request.resource.data.prompt.size() <= 400)
+        && (!('given' in request.resource.data) || request.resource.data.given.size() <= 400)
+        && (!('expected' in request.resource.data) || request.resource.data.expected.size() <= 400)
+        && (!('section' in request.resource.data) || request.resource.data.section.size() <= 200);
+      allow read, update, delete: if teacher();
+    }
+
+    match /feedback/{id} {
+      allow read, write: if teacher();
+    }
+  }
+}
