@@ -48,11 +48,12 @@ tr.no td{background:rgba(229,82,127,.10)}
 @media(max-width:560px){.hide-sm{display:none}}
 </style></head><body><div class="wrap" id="root"></div>
 <script src="firebase-config.js"></script>
+<script src="practices.js"></script>
 <script>
 const C=window.FIREBASE_CONFIG||{};
 const DOCS='https://firestore.googleapis.com/v1/projects/'+C.projectId+'/databases/(default)/documents';
 const LS='glhea_teacher_refresh';
-const NAMES={'conjugaciones':'Conjugaciones','ando-iendo':'-ando / -iendo','frases':'Frases'};
+const NAMES={};(window.PRACTICES||[]).forEach(p=>NAMES[p.id]=p.title);
 const root=document.getElementById('root');
 let token='',tokExp=0,events=[],feedback={},tab='intentos',pfilter='all',timer=null,lastLoad=null;
 

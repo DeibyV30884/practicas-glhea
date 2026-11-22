@@ -8,14 +8,25 @@
   var KEY = 'glhea_pending_events';
   var practice = (location.pathname.split('/').pop() || 'index').replace('.html', '') || 'index';
   var attempt = '';
-  var pdoc = (enabled && C.studentKey) ? 'https://firestore.googleapis.com/v1/projects/' + C.projectId +
-    '/databases/(default)/documents/progress/' + C.studentKey + '-' + practice + '?key=' + C.apiKey : '';
-  var ptimer = 0, plast = null;
-  function putProgress(obj) {
-    if (!pdoc) return;
-    var body = { fields: { data: { stringValue: obj ? JSON.stringify(obj) : '' }, ts: { integerValue: String(Date.now()) } } };
-    try { fetch(pdoc, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(function () {}); } catch (e) {}
+  function docUrl(name) {
+    return (enabled && C.studentKey) ? 'https://firestore.googleapis.com/v1/projects/' + C.projectId +
+      '/databases/(default)/documents/progress/' + C.studentKey + '-prog-' + name + '?key=' + C.apiKey : '';
   }
+  function getDoc(name) {
+    var u = docUrl(name); if (!u) return Promise.resolve(null);
+    return fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !d.fields || !d.fields.data) return null;
+      try { return JSON.parse(d.fields.data.stringValue || 'null'); } catch (e) { return null; }
+    }).catch(function () { return null; });
+  }
+  function putDoc(name, obj) {
+    var u = docUrl(name); if (!u) return;
+    var body = { fields: { data: { stringValue: obj ? JSON.stringify(obj) : '' }, ts: { integerValue: String(Date.now()) } } };
+    try { fetch(u, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(function () {}); } catch (e) {}
+  }
+  var pdoc = docUrl(practice);
+  var ptimer = 0, plast = null;
+  function putProgress(obj) { putDoc(practice, obj); }
   function flushProgress() { if (ptimer) { clearTimeout(ptimer); ptimer = 0; putProgress(plast); } }
 
   function rid() {
@@ -59,16 +70,14 @@
   }
 
   window.TRACK = {
-    loadProgress: function () {
-      if (!pdoc) return Promise.resolve(null);
-      return fetch(pdoc).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-        if (!d || !d.fields || !d.fields.data) return null;
-        try { return JSON.parse(d.fields.data.stringValue || 'null'); } catch (e) { return null; }
-      }).catch(function () { return null; });
-    },
+    loadProgress: function () { return getDoc(practice); },
     saveProgress: function (obj) {
       if (!pdoc) return; plast = obj; clearTimeout(ptimer);
       ptimer = setTimeout(function () { ptimer = 0; putProgress(plast); }, 600);
+    },
+    saveDone: function (o) { putDoc(practice + '-done', o); },
+    loadStatus: function (id) {
+      return Promise.all([getDoc(id), getDoc(id + '-done')]).then(function (r) { return { progress: r[0], done: r[1] }; });
     },
     clearProgress: function () { clearTimeout(ptimer); ptimer = 0; plast = null; putProgress(null); },
     getAttempt: function () { return attempt; },

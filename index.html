@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Three interactive Spanish practices: the -ando / -iendo form, verb conjugations and verbs in real sentences. Answer by speaking!">
+<meta name="description" content="Interactive Spanish practices with ice cream rewards: -ando / -iendo, verb conjugations, verbs in real sentences and more. Answer by speaking!">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Glhea's Spanish practice">
-<meta property="og:description" content="Three interactive Spanish practices: the -ando / -iendo form, verb conjugations and verbs in real sentences. Answer by speaking!">
+<meta property="og:description" content="Interactive Spanish practices with ice cream rewards: -ando / -iendo, verb conjugations, verbs in real sentences and more. Answer by speaking!">
 <meta property="og:url" content="https://deibyvargaschaves.com/practicas-glhea/">
 <meta property="og:image" content="https://deibyvargaschaves.com/practicas-glhea/preview.png">
 <meta property="og:image:width" content="1200">
@@ -15,17 +15,75 @@
 <title>Glhea's Spanish practice</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-body{margin:0;background:#0D0A0E;color:#F7EEF3;font-family:Poppins,system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
-main{max-width:520px;width:100%}
+:root{--bg:#0D0A0E;--ink:#F7EEF3;--grey:#B9A8B3;--line:#3B2633;--pink:#FF5C9A;--card:#19121A;--ok:#3FA872;--okbg:#13301F}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Poppins,system-ui,sans-serif;min-height:100vh;display:flex;justify-content:center;padding:28px 16px 48px}
+main{max-width:560px;width:100%}
 h1{font-size:clamp(34px,8vw,48px);margin:0 0 6px;line-height:1.05}
-p{color:#B9A8B3;font-size:17px;margin:0 0 24px}
-a{display:block;background:#19121A;border:2px solid #3B2633;border-radius:22px;padding:22px 24px;margin-bottom:14px;color:#F7EEF3;text-decoration:none}
-a:hover,a:focus{border-color:#FF5C9A;outline:none}
-a b{display:block;font-size:22px;color:#FF5C9A}
-a span{color:#B9A8B3;font-size:15px}
+.lead{color:var(--grey);font-size:17px;margin:0 0 18px}
+.sum{background:var(--card);border:2px solid var(--line);border-radius:20px;padding:14px 18px;margin-bottom:18px}
+.sum b{font-size:18px}.sum span{color:var(--grey);font-size:15px}
+.meter{height:10px;border-radius:99px;background:#2A1C25;margin-top:10px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--pink);border-radius:99px;transition:width .6s}
+.list{display:grid;gap:14px}
+a.p{display:flex;gap:14px;align-items:center;background:var(--card);border:2px solid var(--line);border-radius:22px;padding:18px 20px;color:var(--ink);text-decoration:none}
+a.p:hover,a.p:focus-visible{border-color:var(--pink);outline:none}
+a.p:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.n{flex:none;width:44px;height:44px;border-radius:50%;background:#2A1C25;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:var(--pink)}
+.t{flex:1;min-width:0}
+.t b{display:block;font-size:20px;line-height:1.2;color:var(--pink)}
+.t span{display:block;color:var(--grey);font-size:15px;margin-top:2px}
+.badge{display:inline-block;margin-top:8px;white-space:nowrap;font-size:13px;font-weight:700;padding:3px 12px;border-radius:999px;background:#2A1C25;color:var(--ink)}
+.badge.prog{background:#3a2f17;color:#F2B35C}
+.badge.done{background:var(--okbg);color:#7ee3b5}
+a.p.done{border-color:var(--ok);background:#101d17}
+a.p.done .n{background:var(--ok);color:#06180f}
+.bar{height:6px;border-radius:99px;background:#2A1C25;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:#F2B35C}
+.go{flex:none;color:var(--grey);font-size:26px;line-height:1}
+.err{color:var(--grey)}
 </style></head><body><main>
-<h1>¡Hola, Glhea!</h1><p>Pick a practice. Allow the microphone once and you can answer by speaking.</p>
-<a href="ando-iendo.html"><b>Practice 1 · -ando / -iendo</b><span>The Spanish -ing form · 27 questions</span></a>
-<a href="conjugaciones.html"><b>Practice 2 · Verb conjugations</b><span>yo hablo, yo voy, yo tengo... + dar · 45 questions</span></a>
-<a href="frases.html"><b>Practice 3 · Verbs in real sentences</b><span>Meanings, sentences and mini conversations · 38 questions</span></a>
-</main></body></html>
+<h1>¡Hola, Glhea!</h1><p class="lead">Pick a practice. Allow the microphone once and you can answer by speaking.</p>
+<div class="sum" id="sum" hidden><b id="sumt"></b> <span id="sums"></span><div class="meter" aria-hidden="true"><i id="sumb"></i></div></div>
+<div class="list" id="list"></div>
+<noscript><p class="err">Please turn on JavaScript to see the practices.</p></noscript>
+</main>
+<script src="firebase-config.js"></script>
+<script src="practices.js"></script>
+<script src="track.js"></script>
+<script>
+const LIST=(window.PRACTICES||[]);
+const remote={};            // id -> {progress, done} from the server
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function ls(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
+function newest(a,b){if(a&&b)return (a.ts||0)>=(b.ts||0)?a:b;return a||b;}
+function status(id){
+  const r=remote[id]||{};
+  const p=newest(ls('glhea_progress_'+id),r.progress), d=newest(ls('glhea_done_'+id),r.done);
+  if(p&&p.v===1&&(!d||(p.ts||0)>(d.ts||0))) return {k:'prog',p};
+  if(d) return {k:'done',d};
+  return {k:'new'};
+}
+function render(){
+  const list=document.getElementById('list');
+  if(!LIST.length){list.innerHTML='<p class="err">No practices yet.</p>';return;}
+  let done=0;
+  list.innerHTML=LIST.map((x,i)=>{
+    const st=status(x.id); let badge='<span class="badge">New</span>',cls='',extra='';
+    if(st.k==='done'){done++;cls=' done';const d=st.d;badge='<span class="badge done">✓ Completed'+(d.total?' · '+d.score+'/'+d.total:'')+'</span>';}
+    else if(st.k==='prog'){const p=st.p;const sec=Math.min(p.total,p.secIdx+(p.phase==='between'?2:1));badge='<span class="badge prog">In progress · '+sec+'/'+p.total+'</span>';extra='<div class="bar" aria-hidden="true"><i style="width:'+Math.round(100*(p.secIdx+(p.phase==='between'?1:0))/p.total)+'%"></i></div>';}
+    return '<a class="p'+cls+'" href="'+esc(x.id)+'.html"><div class="n">'+(st.k==='done'?'✓':(i+1))+'</div><div class="t"><b>'+esc(x.title)+'</b><span>'+esc(x.desc)+'</span>'+badge+extra+'</div><div class="go" aria-hidden="true">›</div></a>';
+  }).join('');
+  const sum=document.getElementById('sum');sum.hidden=false;
+  document.getElementById('sumt').textContent=done+' of '+LIST.length+' completed';
+  document.getElementById('sums').textContent=done===LIST.length?'· Amazing work, Glhea! 🍦':'· Keep going!';
+  document.getElementById('sumb').style.width=Math.round(100*done/LIST.length)+'%';
+}
+render();
+function pull(){
+  Promise.all(LIST.map(x=>Promise.race([TRACK.loadStatus(x.id),new Promise(r=>setTimeout(()=>r(null),3000))]).then(r=>{if(r)remote[x.id]=r;}))).then(render);
+}
+pull();
+window.addEventListener('pageshow',e=>{render();if(e.persisted)pull();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){render();pull();}});
+</script></body></html>

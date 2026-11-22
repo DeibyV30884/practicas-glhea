@@ -160,6 +160,7 @@ const PKEY='glhea_progress_'+(location.pathname.split('/').pop()||'index').repla
 function saveP(phase){const o={v:1,phase,secIdx,qIdx,scoops,firstTry,doneQ,missed,queue,retry:DATA.sections.map(s=>!!s._retry),attempt:TRACK.getAttempt(),total:DATA.sections.length,ts:Date.now()};try{localStorage.setItem(PKEY,JSON.stringify(o));}catch(e){}TRACK.saveProgress(o);}
 function okP(p){return p&&p.v===1&&p.total===DATA.sections.length&&p.secIdx>=0&&p.secIdx<DATA.sections.length?p:null;}
 function loadP(){try{return okP(JSON.parse(localStorage.getItem(PKEY)||'null'));}catch(e){return null;}}
+function markDone(){const o={score:firstTry,total:totalQ,ts:Date.now()};try{localStorage.setItem(PKEY.replace('progress','done'),JSON.stringify(o));}catch(e){}TRACK.saveDone(o);}
 function clearP(){try{localStorage.removeItem(PKEY);}catch(e){}TRACK.clearProgress();}
 function resumeP(p){secIdx=p.secIdx;qIdx=p.qIdx;scoops=p.scoops;firstTry=p.firstTry;doneQ=p.doneQ;missed=p.missed||[];queue=p.queue||[];DATA.sections.forEach((s,i)=>s._retry=!!(p.retry&&p.retry[i]));TRACK.setAttempt(p.attempt);segs();bar();
   if(p.phase==='between'){nextSection();}
@@ -291,7 +292,7 @@ function endSection(){
   }
 }
 function finish(){
-  segs(); bar(); confetti(160); TRACK.done(firstTry,totalQ); clearP();
+  segs(); bar(); confetti(160); TRACK.done(firstTry,totalQ); markDone(); clearP();
   const n=DATA.sections.length; let sc='';
   for(let i=0;i<n;i++){ const y=290-i*52; sc+=`<ellipse cx="100" cy="${y}" rx="58" ry="48" fill="${FLAV[i%8]}" stroke="${FLAVD[i%8]}" stroke-width="4"/>`; }
   const top=290-(n-1)*52-48; const h=420-top+20;
