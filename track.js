@@ -8,6 +8,15 @@
   var KEY = 'glhea_pending_events';
   var practice = (location.pathname.split('/').pop() || 'index').replace('.html', '') || 'index';
   var attempt = '';
+  var pdoc = (enabled && C.studentKey) ? 'https://firestore.googleapis.com/v1/projects/' + C.projectId +
+    '/databases/(default)/documents/progress/' + C.studentKey + '-' + practice + '?key=' + C.apiKey : '';
+  var ptimer = 0, plast = null;
+  function putProgress(obj) {
+    if (!pdoc) return;
+    var body = { fields: { data: { stringValue: obj ? JSON.stringify(obj) : '' }, ts: { integerValue: String(Date.now()) } } };
+    try { fetch(pdoc, { method: 'PATCH', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(function () {}); } catch (e) {}
+  }
+  function flushProgress() { if (ptimer) { clearTimeout(ptimer); ptimer = 0; putProgress(plast); } }
 
   function rid() {
     var a = new Uint8Array(9);
@@ -50,6 +59,18 @@
   }
 
   window.TRACK = {
+    loadProgress: function () {
+      if (!pdoc) return Promise.resolve(null);
+      return fetch(pdoc).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        if (!d || !d.fields || !d.fields.data) return null;
+        try { return JSON.parse(d.fields.data.stringValue || 'null'); } catch (e) { return null; }
+      }).catch(function () { return null; });
+    },
+    saveProgress: function (obj) {
+      if (!pdoc) return; plast = obj; clearTimeout(ptimer);
+      ptimer = setTimeout(function () { ptimer = 0; putProgress(plast); }, 600);
+    },
+    clearProgress: function () { clearTimeout(ptimer); ptimer = 0; plast = null; putProgress(null); },
     getAttempt: function () { return attempt; },
     setAttempt: function (id) { if (id) attempt = String(id); },
     begin: function () { try { attempt = rid(); flush(); push({ type: 'start', attempt: attempt, practice: practice, ts: Date.now() }); } catch (e) {} },
@@ -69,5 +90,7 @@
     }
   };
   window.addEventListener('online', flush);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushProgress(); });
+  window.addEventListener('pagehide', flushProgress);
   try { flush(); } catch (e) {}
 })();

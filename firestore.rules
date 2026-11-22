@@ -21,6 +21,17 @@ service cloud.firestore {
       allow read, update, delete: if teacher();
     }
 
+    // Progreso guardado de la práctica. El id incluye una clave larga (studentKey), así que solo
+    // quien la conoce puede leer/escribir su documento. No se puede listar ni borrar sin ser el profe.
+    match /progress/{id} {
+      allow get: if id.size() >= 30;
+      allow create, update: if id.size() >= 30
+        && request.resource.data.keys().hasOnly(['data','ts'])
+        && request.resource.data.data is string && request.resource.data.data.size() <= 6000
+        && request.resource.data.ts is int;
+      allow list, delete: if teacher();
+    }
+
     match /feedback/{id} {
       allow read, write: if teacher();
     }

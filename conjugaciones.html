@@ -157,9 +157,10 @@ let secIdx = -1, qIdx = 0, scoops = 0, firstTry = 0, totalQ = 0, missed = [], qu
 DATA.sections.forEach(s => totalQ += s.questions.length);
 let doneQ = 0;
 const PKEY='glhea_progress_'+(location.pathname.split('/').pop()||'index').replace('.html','');
-function saveP(phase){try{localStorage.setItem(PKEY,JSON.stringify({v:1,phase,secIdx,qIdx,scoops,firstTry,doneQ,missed,queue,retry:DATA.sections.map(s=>!!s._retry),attempt:TRACK.getAttempt(),total:DATA.sections.length,ts:Date.now()}));}catch(e){}}
-function loadP(){try{const p=JSON.parse(localStorage.getItem(PKEY)||'null');if(p&&p.v===1&&p.total===DATA.sections.length&&p.secIdx>=0&&p.secIdx<DATA.sections.length)return p;}catch(e){}return null;}
-function clearP(){try{localStorage.removeItem(PKEY);}catch(e){}}
+function saveP(phase){const o={v:1,phase,secIdx,qIdx,scoops,firstTry,doneQ,missed,queue,retry:DATA.sections.map(s=>!!s._retry),attempt:TRACK.getAttempt(),total:DATA.sections.length,ts:Date.now()};try{localStorage.setItem(PKEY,JSON.stringify(o));}catch(e){}TRACK.saveProgress(o);}
+function okP(p){return p&&p.v===1&&p.total===DATA.sections.length&&p.secIdx>=0&&p.secIdx<DATA.sections.length?p:null;}
+function loadP(){try{return okP(JSON.parse(localStorage.getItem(PKEY)||'null'));}catch(e){return null;}}
+function clearP(){try{localStorage.removeItem(PKEY);}catch(e){}TRACK.clearProgress();}
 function resumeP(p){secIdx=p.secIdx;qIdx=p.qIdx;scoops=p.scoops;firstTry=p.firstTry;doneQ=p.doneQ;missed=p.missed||[];queue=p.queue||[];DATA.sections.forEach((s,i)=>s._retry=!!(p.retry&&p.retry[i]));TRACK.setAttempt(p.attempt);segs();bar();
   if(p.phase==='between'){nextSection();}
   else if(p.phase==='retry'){const s=DATA.sections[secIdx];s._retry=true;queue=missed.slice();missed=[];qIdx=0;if(queue.length)showQ();else nextSection();}
@@ -303,7 +304,12 @@ function finish(){
   document.getElementById('again').onclick=()=>{secIdx=-1;scoops=0;firstTry=0;doneQ=0;DATA.sections.forEach(s=>s._retry=false);start();};
   window.scrollTo(0,0);
 }
-start();
+function resetAll(){secIdx=-1;qIdx=0;scoops=0;firstTry=0;doneQ=0;missed=[];queue=[];DATA.sections.forEach(s=>s._retry=false);segs();bar();}
+function toast(){const t=document.createElement('div');t.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:20;background:#24151F;border:2px solid var(--pink);border-radius:16px;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:15px';t.innerHTML='<span>Continuing where you left off ✓</span><button class="btn alt" style="padding:8px 14px;min-height:0;font-size:14px">Start over</button>';document.body.appendChild(t);t.querySelector('button').onclick=()=>{clearP();resetAll();t.remove();start();};setTimeout(()=>t.remove(),9000);}
+app.innerHTML='<div class="card"><p class="muted">Loading your progress…</p></div>';
+(async()=>{let r=null;try{r=await Promise.race([TRACK.loadProgress(),new Promise(res=>setTimeout(()=>res(null),2500))]);}catch(e){}
+  r=okP(r);const l=loadP();const p=(l&&r)?(r.ts>l.ts?r:l):(l||r);
+  if(p){resumeP(p);toast();}else start();})();
 </script>
 </body>
 </html>
