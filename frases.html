@@ -116,6 +116,26 @@ button{font-family:inherit;cursor:pointer;border:none}
 .words span b{color:var(--pink);font-weight:700}
 @media (max-width:520px){.fbst{width:88px;height:88px}}
 @media (max-width:520px){.meter span{display:none}.brand{font-size:15px}.card{padding:18px}.mic{width:68px;height:68px}}
+.resume{background:#24151F;border:2px solid var(--pink);border-radius:16px;padding:14px 16px;margin:14px 0}
+.resume p{margin:0 0 10px}
+@media (max-width:520px){
+main{padding:12px 12px 120px}
+.card{padding:14px;border-radius:20px}
+.prompt{font-size:clamp(22px,6.2vw,28px);line-height:1.2}
+.prompt .sent{font-size:clamp(19px,5vw,24px)}
+.prompt .say2{font-size:clamp(16px,4.2vw,19px)}
+h1{font-size:30px}h2{font-size:22px}p{font-size:16px}
+.hint{font-size:15px;margin-bottom:10px}
+.mic{width:58px;height:58px}.mic svg{width:28px;height:28px}
+.typebox{min-width:0;flex:1 1 0}
+.typebox input{font-size:18px;padding:10px 12px}
+.btn{padding:12px 18px;font-size:16px}
+.status{font-size:17px;color:var(--ink);font-weight:600}
+.choice{font-size:18px;padding:12px 14px;min-height:48px}
+.fb .ans{font-size:22px}.fb .big{font-size:19px}
+.fbst{width:64px;height:64px}
+.topin{padding:8px 12px}
+}
 </style>
 </head>
 <body>
@@ -136,6 +156,15 @@ const NAME = "Glhea";
 let secIdx = -1, qIdx = 0, scoops = 0, firstTry = 0, totalQ = 0, missed = [], queue = [], answered = false;
 DATA.sections.forEach(s => totalQ += s.questions.length);
 let doneQ = 0;
+const PKEY='glhea_progress_'+(location.pathname.split('/').pop()||'index').replace('.html','');
+function saveP(phase){try{localStorage.setItem(PKEY,JSON.stringify({v:1,phase,secIdx,qIdx,scoops,firstTry,doneQ,missed,queue,retry:DATA.sections.map(s=>!!s._retry),attempt:TRACK.getAttempt(),total:DATA.sections.length,ts:Date.now()}));}catch(e){}}
+function loadP(){try{const p=JSON.parse(localStorage.getItem(PKEY)||'null');if(p&&p.v===1&&p.total===DATA.sections.length&&p.secIdx>=0&&p.secIdx<DATA.sections.length)return p;}catch(e){}return null;}
+function clearP(){try{localStorage.removeItem(PKEY);}catch(e){}}
+function resumeP(p){secIdx=p.secIdx;qIdx=p.qIdx;scoops=p.scoops;firstTry=p.firstTry;doneQ=p.doneQ;missed=p.missed||[];queue=p.queue||[];DATA.sections.forEach((s,i)=>s._retry=!!(p.retry&&p.retry[i]));TRACK.setAttempt(p.attempt);segs();bar();
+  if(p.phase==='between'){nextSection();}
+  else if(p.phase==='retry'){const s=DATA.sections[secIdx];s._retry=true;queue=missed.slice();missed=[];qIdx=0;if(queue.length)showQ();else nextSection();}
+  else if(queue.length&&qIdx<queue.length){showQ();}
+  else{nextSection();}}
 
 // ---------- helpers ----------
 function norm(s){return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[¿?¡!.,;:"“”'’]/g," ").replace(/\s+/g," ").trim();}
@@ -163,8 +192,8 @@ function listen(onText, statusEl, micEl){
   if(recOn){try{rec.stop();}catch(e){}return;}
   rec=new SR(); rec.lang='es-MX'; rec.interimResults=true; rec.maxAlternatives=5; rec.continuous=false;
   let finalAlts=null;
-  rec.onstart=()=>{recOn=true;micEl.classList.add('rec');statusEl.textContent='Listening... say your answer in Spanish';};
-  rec.onresult=(ev)=>{const r=ev.results[ev.results.length-1];const t=r[0].transcript;statusEl.textContent='I heard: "'+t+'"';if(r.isFinal){finalAlts=[];for(let i=0;i<r.length;i++)finalAlts.push(r[i].transcript);}};
+  rec.onstart=()=>{recOn=true;micEl.classList.add('rec');statusEl.textContent='Listening... say your answer in Spanish';try{statusEl.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}};
+  rec.onresult=(ev)=>{const r=ev.results[ev.results.length-1];const t=r[0].transcript;statusEl.textContent='I heard: "'+t+'"';if(r.isFinal){try{statusEl.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}finalAlts=[];for(let i=0;i<r.length;i++)finalAlts.push(r[i].transcript);}};
   rec.onerror=(ev)=>{const m={'not-allowed':"The microphone is blocked. Allow the microphone for this page (lock icon next to the address), or open this file directly in Chrome. You can also type your answer.",'service-not-allowed':"The microphone is blocked here. Download this page and open it in Chrome, or type your answer.",'no-speech':"I didn't hear anything. Tap the mic and try again!",'audio-capture':"No microphone found. You can type your answer instead.",'network':"Voice needs an internet connection. You can type your answer instead."};statusEl.textContent=m[ev.error]||('Voice error: '+ev.error+'. You can type your answer.');};
   rec.onend=()=>{recOn=false;micEl.classList.remove('rec');if(finalAlts&&finalAlts.length)onText(finalAlts);};
   try{rec.start();}catch(e){statusEl.textContent='Could not start the microphone. Type your answer instead.';}
@@ -177,13 +206,14 @@ function stickerScreen(key, title, text, btn, next){
 }
 function start(){
   segs(); bar();
-  app.innerHTML=`<div class="card"><span class="pill" style="background:var(--pink)">${DATA.tag}</span><h1>¡Hola, ${NAME}!</h1><p>${DATA.intro}</p>
+  app.innerHTML=`<div class="card"><span class="pill" style="background:var(--pink)">${DATA.tag}</span><h1>¡Hola, ${NAME}!</h1><p>${DATA.intro}</p>${(()=>{const p=loadP();return p?`<div class="resume" id="resume"><p><b>Welcome back, ${NAME}!</b> Your progress was saved: you were on <b>Section ${p.secIdx+(p.phase==='between'?2:1)}</b> of ${DATA.sections.length}.</p><div class="row"><button class="btn pink" id="rgo">Continue</button><button class="btn alt" id="rno">Start over</button></div></div>`:'';})()}
   <div class="progress-list">${DATA.sections.map((s,i)=>`<div><span>${i+1}. ${s.title}</span><span class="muted">${s.questions.length} questions</span></div>`).join('')}</div>
   <p><b>How it works:</b> tap the pink <b>microphone</b> and <b>say</b> your answer in Spanish, or type it in the box. Finish a section with everything right and you earn a <b>scoop of ice cream</b>. Fill the meter to win!</p>
   ${!SR?'<div class="warn">Voice answers need Chrome (computer or Android) or Safari. In this browser you can still type your answers.</div>':(window.self!==window.top?'<div class="warn">Voice answers may not work inside this preview window. Download this file and open it in Chrome to answer by speaking. Typing works everywhere!</div>':'')}
   <div class="row" style="margin-top:14px"><button class="btn pink" id="go">Let's go!</button><button class="btn alt" id="test">Test my microphone</button></div><div class="status" id="st"></div></div>`;
   document.getElementById('go').onclick=()=>stickerScreen('youcan','You can do this!',`Take your time, ${NAME}. Mistakes are how you learn.`,'Start section 1',()=>{TRACK.begin();nextSection();});
   const st=document.getElementById('st'), tb=document.getElementById('test');
+  const rs=document.getElementById('resume');if(rs){document.getElementById('rgo').onclick=()=>resumeP(loadP());document.getElementById('rno').onclick=()=>{clearP();rs.remove();};}
   tb.onclick=()=>listen(alts=>{st.textContent='Your microphone works! I heard: "'+alts[0]+'"';},st,tb);
 }
 function nextSection(){
@@ -193,7 +223,7 @@ function nextSection(){
   document.getElementById('go').onclick=()=>showQ(); window.scrollTo(0,0);
 }
 function showQ(){
-  const s=DATA.sections[secIdx]; const i=queue[qIdx]; const q=s.questions[i]; answered=false;
+  const s=DATA.sections[secIdx]; const i=queue[qIdx]; const q=s.questions[i]; answered=false; saveP('q');
   const retry = s._retry ? ' · retry' : '';
   let body = `<div class="card" style="--c:${s.color}"><div class="qmeta"><span>${s.title}${retry}</span><span>${qIdx+1} / ${queue.length}</span></div>
   <div class="prompt">${q.p}</div>${q.hint?`<div class="hint">${q.hint}</div>`:''}`;
@@ -252,15 +282,15 @@ function endSection(){
     scoops++; segs(); confetti(70);
     const opts=[['goodjob','Good job, '+NAME+'!'],['thumbs','¡Muy bien, '+NAME+'!'],['suit','Excellent work, '+NAME+'!']];
     const o=opts[secIdx%3];
-    s._retry=false;
+    s._retry=false; saveP('between');
     stickerScreen(o[0], o[1], `Section complete! You earned scoop number ${scoops} of ${DATA.sections.length}.`, secIdx+1<DATA.sections.length?'Next section':'See my ice cream!', ()=>nextSection());
   } else {
-    const n=missed.length;
+    const n=missed.length; saveP('retry');
     stickerScreen('youcan','You can do this!',`You missed ${n} ${n===1?'question':'questions'}. Let's try ${n===1?'it':'them'} again. Get ${n===1?'it':'them all'} right to earn your scoop!`,'Try again',()=>{s._retry=true; queue=missed.slice(); missed=[]; qIdx=0; showQ();});
   }
 }
 function finish(){
-  segs(); bar(); confetti(160); TRACK.done(firstTry,totalQ);
+  segs(); bar(); confetti(160); TRACK.done(firstTry,totalQ); clearP();
   const n=DATA.sections.length; let sc='';
   for(let i=0;i<n;i++){ const y=290-i*52; sc+=`<ellipse cx="100" cy="${y}" rx="58" ry="48" fill="${FLAV[i%8]}" stroke="${FLAVD[i%8]}" stroke-width="4"/>`; }
   const top=290-(n-1)*52-48; const h=420-top+20;

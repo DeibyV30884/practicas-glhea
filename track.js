@@ -50,6 +50,8 @@
   }
 
   window.TRACK = {
+    getAttempt: function () { return attempt; },
+    setAttempt: function (id) { if (id) attempt = String(id); },
     begin: function () { try { attempt = rid(); flush(); push({ type: 'start', attempt: attempt, practice: practice, ts: Date.now() }); } catch (e) {} },
     answer: function (d) {
       try {
